@@ -1,0 +1,390 @@
+---
+title: "NHANES_analysis"
+author: "Mikolaj Cygan"
+date: "2023-12-11"
+output: html_document
+chosen dataset: "NHANES3"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# NHANES Analysis for R Project 2023
+
+## Question 1a
+###What are important characteristics of the NHANES study (study design, target population, study objectives, study period, …)?
+
+Study design: The goal of NHANES study is to assess the health and nutritional status of adults and children in the United States. Therefore the target population are the citizens of United States of America. The study is designed in a way that after a complicated sampling process, including utilization of "primary sampling units" (PSUs), division into strata followed by division into a series of neighbourhoods, the data is collected by directly interviewing the participant and those within their household about their health and by direct medical examination involving physical, anthropometric and biochemical tests. The sampling process is designed in a way that one participant should in theory serve as a representation of 50, 000 US residents.
+The specific objectives are to determine the prevalence of major diseases and risk factors associated with those dieseases, to design health promotion campaigns, and to establish national reference values for the dieseases.
+Study period
+
+## Question 1b
+### What general categories (such as “demographics”, “lab results”) can the variables in the dataset be sorted into?
+In my estimation the categories in which the data collected can be sorted to would be:
+- demographics
+- medical history
+- health habbits
+- subjective health status
+- lab results
+- clinical measurements
+
+## Question 2a
+Using the subsample you have chosen, describe the US population with regards to
+-demographic characteristics. How can the strange age distribution be explained? To deal with this problem, recode the age variable into the following categories:18-34, 35-49, 50-64, 65-79, 80 or higher
+```{r}
+# installing libraries
+library(tidyverse)
+library(egg)
+```
+```{r}
+data <- read_csv("NHANES3.csv")
+# demographic variables:
+names(data)
+```
+
+demographic variables would be: age, educ, martlst, male, ethnic, increl, jobstat
+
+
+```{r}
+demog <- c("age", "educ", "martlst", "male", "ethnic", "increl", "jobstat_lwk")
+demog_data <- data[, demog]
+demog_data
+```
+```{r}
+#histograms for demographic data
+plot_1 <- ggplot(data=data) +
+    geom_histogram(aes(x=age))
+plot_2 <- ggplot(data=data) +
+    geom_bar(aes(x= educ))
+plot_3 <- ggplot(data=data) +
+    geom_bar(aes(x=martlst))
+plot_4 <- ggplot(data=data) +
+    geom_bar(aes(x=male))
+plot_5 <- ggplot(data=data) +
+    geom_bar(aes(x=ethnic))
+plot_6 <- ggplot(data=data) +
+    geom_bar(aes(x=increl))
+plot_7 <- ggplot(data=data) +
+    geom_bar(aes(x=jobstat_lwk))
+
+ggarrange(plot_1, plot_2, plot_3, plot_4, plot_5, plot_6, plot_7,
+          ncol = 2, nrow = 4)
+
+```
+Age distribution:
+```{r}
+plot_1
+```
+We can see that the age distribution is not smooth or regular. It has many peaks and dips. It probably does not depict the age distribution of the american society, where a classic age distribution or age pyramid of a developed country would be expected.
+This strange age distribution might be a byproduct of the complicated sampling procedure. If sampling were done randomly, probably the age distirbution would be more reminiscent of the actual age pyramid in the United States.
+
+```{r}
+#recoding age variable to 18-34, 35-49, 50-64, 65-79, 80 or higher
+?mutate()
+data <- data %>% mutate(Age_cat=case_when(
+  (age >= 18 & age <=34) ~ "18-34",
+  (age >= 35 & age <=49) ~ "35-49",
+  (age >= 50 & age <=64) ~ "50-64",
+  (age >= 65 & age <=79) ~ "65-79",
+  (age >= 80) ~ "80+"))
+
+data
+#plotting the new age categories as categorical variable in bar chart
+data %>% ggplot(aes(x=Age_cat)) +
+  geom_bar() 
+```
+
+
+## Question 2b
+### When asked about Marital status, some of the participants refused to answer while some didn’t know which category they belonged. Hence they were coded differently. Take that into account and recode the variable martlst.
+```{r}
+# analysis of marital status
+data %>% count(martlst)
+```
+Some were coded as 77 or 99. In total 5. It is reasonable to recode them as NAs.
+```{r}
+data <- data %>% mutate(martlst = ifelse((martlst == 77 | martlst == 99), NA, martlst))
+data %>% count(martlst)
+```
+```{r}
+# updated plot for marital status
+ggplot(data=data) + geom_bar(aes(x=martlst))
+```
+
+## Question 2c
+### Self-rated health. Looking at the results of your descriptive analysis, what do you have to consider when interpreting the results?
+```{r}
+# analysis of self rate health
+
+summary(data$srhgnrl)
+data %>% ggplot(mapping= aes(x=srhgnrl)) + geom_bar()
+```
+
+Considerations when analysing the data:
+There is an over-representation of the youngest age-group. Moreover in incorporating age data in analysis we have to take into account that NHANES is not a longitudinal study. It has a contemporaneous study design meaning that different age groups are analysed at the same time points similar to cross-sectional design. This does not allow to draw strick conclusions about the influence of aging on other parameters.
+
+## Question 3a (Diabetes and Ethicity)
+### How is the diabetes status distributed in your data set? Summarize the 2 diabetes groups in a single group and recode the variable for diabetes status into two groups: non-diabetes and diabetes. Give an interval estimate for diabetes in your data set.
+
+```{r}
+data$diab_lft %>% summary()
+data %>% count(diab_lft)
+data %>% ggplot(mapping=aes(x=diab_lft)) + geom_bar()
+data <- data %>% mutate(diab_lft = ifelse((diab_lft == 2 | diab_lft == 3), 1, 0)) %>% rename(diabetes = diab_lft)
+data %>% count(diabetes)
+```
+
+interval estimate for diabetes: 95% CI for proportion of diabetes 
+```{r}
+#drop the NAs in order to neatly calculate CI for proportion
+diabetes_data <- data %>% drop_na(diabetes) %>% pull(diabetes) 
+
+prop.test(sum(diabetes_data),length(diabetes_data), correct=FALSE)
+```
+The estimated proportion is 0.1284072 and the 95% CI [0.1191417; 0.1382801]
+
+## Exercise 3b
+### Work with the recoded variable. Use an appropriate statistical test to test the relation between diabetes status and ethnicity. Inteprete the results of the test.
+
+```{r}
+contingency_table <- table(data$ethnic, data$diabetes)
+contingency_table
+```
+Chi-square test of independence
+
+```{r}
+chisq.test(contingency_table)
+```
+The null hypothesis of Chi-squared test is that the two variables are independent. Here we should reject the null hipothesis and conclude that the diabetes status and ethnicity are in fact dependent of each other.
+
+## Exercise 4a (Weekly working hours and self-evaluated health status)
+
+### The variable hrsworked_prvwk codes the number of weekly working hours. 77777 or 99999 are missing values. Recode these missing values with a proper value, e.g. NA.
+
+```{r}
+data %>% count(hrsworked_prvwk)
+data <- data %>% mutate(hrsworked_prvwk = ifelse(hrsworked_prvwk == 77777, NA, hrsworked_prvwk))
+data %>% count(hrsworked_prvwk)
+```
+## Exercise 4b
+### Recode the variable hrsworked_prvwk into categories [,40), [40,) weekly working hours. Number or name the categories properly. (Hint: Set the new variable as a factor variable, if necessary)
+
+```{r}
+data <- data %>% mutate(FortyPlus_hrs_work = case_when(
+  (hrsworked_prvwk < 40) ~ 0,
+  (hrsworked_prvwk >= 40) ~ 1,)) %>% mutate(FortyPlus_hrs_work = as_factor(FortyPlus_hrs_work))
+data %>% count(data$FortyPlus_hrs_work)
+```
+
+## Exercise 4c
+### Plot weekly working hours against selft-evaluated health status using mosaic plot. Looking at the plot, what would you tell about the relation between these two variables.
+
+```{r}
+library(ggmosaic)
+data %>% 
+  filter(!is.na(FortyPlus_hrs_work)) %>%
+  ggplot() +
+  geom_mosaic(aes(x = product(FortyPlus_hrs_work, srhgnrl), fill = FortyPlus_hrs_work)) +
+  labs(title = 'Self-rated health to working over 40 hours a week')
+```
+
+After looking at the plot it seems that proportion of people working over 40 hours a week is roughly the same in all self-rated health groups. 
+I think, that in order to compare the groups and test sstatistical significance of the difference ANOVA test with post-hoc analysis would be a good choice.
+
+## Exercise 5a
+###Blood mercury level (umol/L) and gender
+###Describe and plot the distribution of blood mercury level in men and women.
+
+```{r}
+males <- data %>% filter(male == 1)
+females <- data %>% filter(male == 0)
+binwidth_hg <- 2
+ggplot()+
+  geom_histogram(data = males, binwidth = binwidth_hg, mapping=aes(x= hg, fill="Male", alpha=0.1))+
+  geom_histogram(data = females, binwidth = binwidth_hg,  mapping=aes(x=hg, fill="Female", alpha=0.1))
+```
+The distributions are quite similar. They do not follow a normal distirubtion. The data is right skewed, however the hg level is a continuous variable and there seems to be a lot of outliers on the upper end.
+
+### Use both parametric and non-parametric statistical tests to test for the statistical significance the relation between blood mercury level and gender. Inteprete the results of the tests.
+Parametric tests
+2 sample Z-test (t-test)
+```{r}
+t.test(males$hg, females$hg)
+```
+
+The result of the two sample t-test appears to be significant p-value= 0.021. Below the critical value of 0.05.
+
+non-parametric test - Wilcoxon rank sum test
+```{r}
+wilcox.test(males$hg, females$hg)
+```
+The p-value from the non-parametric Wilcoxon test is equal to 0.581 so the null-hypothesis cannot be rejected according to this test.
+Since we can assume normal distribution of the means of the data for males and females hg levels, as per central limit theorem, using a parametric test would be more suitable in this case.
+
+## Exercise 6a
+### How strong is the relationship between BMI and HDL (the “good” cholesterol)? Is it significant? How much of the variation in HDL can be explained (in a statistical sense) by variation in BMI?
+
+```{r}
+cor.test(data$bmi, data$hdl, method = "pearson")
+linear_model <- lm(data$bmi ~ data$hdl)
+summary(linear_model)
+```
+
+R-squared value is indicating how much of the variance of the dependent variable can be explained by the variance of the independent variable. About 0.071 of the variance in HDL can be explained by the variance in BMI. This is statistically significant as the p value is low. However the R-squared value is low, so using BMI as a predictor for HDL level is not suitable.
+
+
+## Exercise 6b
+### Does the relationship between HDL and BMI change when you adjust for age (categorized)? Interpret the coefficients of the resulting model (when you mean-center BMI before fitting the model, you can also interpret the intercept). Would you say that BMI has a clinically relevant impact on HDL, according to your model?
+
+```{r}
+#standardizing the bmi
+# Calculating mean and standard deviation
+mean_bmi <- mean(data$bmi, na.rm = TRUE)
+sd_bmi <- sd(data$bmi, na.rm = TRUE)
+
+# Standardizing the 'bmi' variable
+data$bmi_normalized <- (data$bmi - mean_bmi) / sd_bmi
+
+multiple_regression_model <- lm(hdl ~ bmi_normalized + Age_cat, data = data)
+summary(multiple_regression_model)
+```
+Intercept says what would be the predicted hdl value for a person not belonging to any age category and having an average BMI ( after standarization).
+Although the p-value from the F-test indicates statistical significance, the R-squared value is very small. Although significant, only about 8% of the variance in the hdl can be explained by the variance of the bmi and age category. Thus the clinical importance of this model is quite low. 
+
+## Exercise 6c
+
+### Try to find a better model to predict HDL by including more covariates. Select a number of candidate covariates which in your opinion may be related to HDL, and then choose a model selection strategy and a criterion/test for comparing models. Describe the model with the best fit according to your search, and interpret the model coefficients.
+
+I will try to use a stepwise regression - forward selection.
+```{r}
+multiple_regression_model2 <- lm(hdl ~ bmi, data = data)
+#+ Age_cat + stroke_ever + livdis_now + rel_heartdis + heartdis_ever + smokstat + ethnic + male
+summary(multiple_regression_model2)
+```
+The bmi is a statistically significant predictor, as per Wald's test, but it explains only 7 % of the variance in the dependent variable HDL.
+Now I will add gender to the model.
+
+```{r}
+multiple_regression_model3 <- lm(hdl ~ bmi + male, data = data)
+summary(multiple_regression_model3)
+```
+By adding the gender into the model I have managed to increase the R-squared and both predictors are significant according to Wald's test.
+
+With added ethicity:
+```{r}
+multiple_regression_model4 <- lm(hdl ~ bmi + male + ethnic, data = data)
+summary(multiple_regression_model4)
+```
+the imporvement of R-squared is negligable
+
+When adding more variables one needs to be concerned about overfitting. 
+
+- Model including bmi, gender, alcohol, somking.
+
+```{r}
+multiple_regression_model4 <- lm(hdl ~ bmi + male + alc_lft + smokstat, data = data)
+summary(multiple_regression_model4)
+```
+The highest R-squared value can be achieved using this model with multiple predictors.
+
+
+## Exercise 7 a Cancer
+
+### Estimate the lifetime prevalence of cancer. Can you also give an interval estimate?
+```{r}
+cancer_data <- data %>% drop_na(cancer_ever)
+cancer_data
+lifetime_prevelence <- sum(cancer_data$cancer_ever) / nrow(cancer_data)
+cancer_data
+lifetime_prevelence
+
+low <- lifetime_prevelence - qnorm(0.975)*2/sqrt(nrow(cancer_data))
+up <- lifetime_prevelence + qnorm(0.975)*2/sqrt(nrow(cancer_data))
+c(low,up)
+```
+The lifetime cancer prevelence is 8.6% with 95%CI [2.92; 14.3]%
+
+## Exercise 7b
+### What are the prevalence estimates in those who were exposed to pollutants at work for a longer time period, and in those who weren’t? Is there a significant difference in prevalence between these two subgroups?
+
+```{r}
+# X-Squared Test
+data_pol <- data %>% drop_na(cancer_ever, workpollut)
+tbl <- table(data_pol$cancer_ever, data_pol$workpollut)
+prop.test(tbl)
+
+```
+
+```{r}
+# t-test
+cancer_pol<- data %>% drop_na(cancer_ever, workpollut) %>% filter((workpollut == TRUE)) %>% select(cancer_ever)
+cancer_nopol <-data %>% drop_na(cancer_ever, workpollut) %>% filter((workpollut == FALSE)) %>% select(cancer_ever)
+
+t.test(cancer_pol,cancer_nopol)
+```
+There is no significant difference in prevelance between the two subgroups (X-squared test and T-Test)
+
+## Exercise 7c
+### Adjust for age in the relationship between lifetime diagnosis of cancer and exposure to pollutants, using the categorized age variable (Note: No information on pollutant exposure was collected from participants aged 80+, so these cannot be included in the analysis). Does the adjustment for age change the picture? Interprete the model coefficients including the intercept.
+
+```{r}
+data_pol_age <- data_pol %>% filter(Age_cat != '80+')
+data_pol_age
+tbl_2 <- table(data_pol_age$cancer_ever, data_pol_age$workpollut, data_pol_age$Age_cat)
+tbl_2
+```
+
+```{r}
+logistic_regression <- glm(cancer_ever ~ workpollut + Age_cat,family = "binomial", data = data_pol_age)
+summary(logistic_regression)
+```
+
+This logit model shows that age category has significant impact on the log-odds of getting cancer during lifetime. The greatest risk is associated with age category 65-79, whereas the lowest with 35-49. Working in polluted environments, according to Wald's test, is not significant. This means it probably should be taken out from the model.
+The intercept represents the log-odds of the outcome - Cancer, when all predictor variables are set to zero. In this case it does not allow for meaningful interpretation.
+Interpretation of the coefficients:
+Belonging to 65-79 age category increases the risk of being diagnosed with cancer about 3 times. Belonging to the lower age category increases the risk of being diagnosed with cancer by 2.27, belonging to the 35-49 age category increases the risk of being diagnosed with cancer by 1.2. This is in relation to beeing in the age category 18-35. The pollution at workplace is not significant.
+
+## Exercise 7d
+### Try to find a good model of cancer diagnosis, describe, and interpret it, as you did for HDL.
+```{r}
+#variables which seem the most imporant for predicting cancer
+logit <- glm(cancer_ever~smokstat + Age_cat, family = binomial, data=data)
+summary(logit)
+logit2 <- glm(cancer_ever~workpollut+Age_cat+smokstat+alc_lft, family=binomial, data=data)
+summary(logit2)
+# adding some variables for depression
+logit3 <- glm(cancer_ever~workpollut+Age_cat+smokstat+alc_lft+ phq1 + phq2 + phq3 + phq4 + phq5, family=binomial, data=data)
+summary(logit3)
+
+```
+```{r}
+#interpretation of the predictors
+#Age cat 65-75
+exp(2.902)
+#age cat 50-64
+exp(2.16)
+#phq2 depression questionaire
+exp(0.414)
+
+```
+
+The last model has the lowest value for AIC, indicating it is the best of the 3 models.
+In the context of logistic regression, the AIC is a measure of the relative quality of a statistical model, taking into account both the goodness of fit and the simplicity of the model.
+Same as in linear regression the intercept of this model suggests what would be the log-odds of having cancer during lifetime if all predictors were set to zero.
+A few of the covariates do not have sufficient statistical significance according to Wald's test. However including them in the model changes the significance of other covariates , so I do not know if I should leave them or get rid of them when creating a good model.
+
+
+Interpretation of some predictors:
+
+The odds of being diagnosed with cancer are 18.2 times higher for people belonging to age category 65-79 than for people belonging to the 18-35 age category. For 50-64 the odds are 8.67 times higher in comparison to the 18-35 age category.
+The odds of being diagnosed with cancer increase 1.51 times with increase of 1 point in phq2 test item score. There is low statistical significance for other variables.
+
+
+
+
+
+
+
+
+
